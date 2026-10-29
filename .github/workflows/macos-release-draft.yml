@@ -1,0 +1,89 @@
+name: Attach macOS packages to release draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful manual macOS build run ID
+        required: true
+      release_id:
+        description: Existing unpublished release draft ID
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Validate build and draft
+        uses: actions/github-script@v7
+        env:
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          RELEASE_ID: ${{ inputs.release_id }}
+        with:
+          script: |
+            const repo = context.repo;
+            const run = (await github.rest.actions.getWorkflowRun({ ...repo, run_id: Number(process.env.BUILD_RUN_ID) })).data;
+            const release = (await github.rest.repos.getRelease({ ...repo, release_id: Number(process.env.RELEASE_ID) })).data;
+            if (run.conclusion !== 'success' || run.event !== 'workflow_dispatch' || run.head_branch !== 'main' ||
+                run.head_repository.full_name !== `${repo.owner}/${repo.repo}` || run.path !== '.github/workflows/macos-build.yml') {
+              throw new Error('Only successful manual main-branch macOS builds can be attached');
+            }
+            if (!release.draft || release.target_commitish !== run.head_sha) {
+              throw new Error('Release must be an unpublished draft pinned to the build commit');
+            }
+
+      - name: Download validated build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: zenvue-macos-packages
+          path: packages
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify downloaded packages
+        run: |
+          cd packages
+          for arch in arm64 x64; do
+            test -s "Zenvue-${arch}.dmg"
+            test -s "Zenvue-${arch}.zip"
+          done
+          sha256sum --ignore-missing --check SHA256SUMS.txt
+
+      - name: Attach packages and complete checksum manifest
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ inputs.release_id }}
+        with:
+          script: |
+            const fs = require('fs');
+            const repo = context.repo;
+            const release_id = Number(process.env.RELEASE_ID);
+            const release = (await github.rest.repos.getRelease({ ...repo, release_id })).data;
+            if (!release.draft) throw new Error('Refusing to modify a published release');
+            const names = ['Zenvue-arm64.dmg', 'Zenvue-arm64.zip', 'Zenvue-x64.dmg', 'Zenvue-x64.zip'];
+            const existing = await github.paginate(github.rest.repos.listReleaseAssets, { ...repo, release_id });
+            for (const name of names) {
+              if (existing.some(asset => asset.name === name)) throw new Error(`Asset already exists: ${name}`);
+            }
+            for (const name of names) {
+              await github.rest.repos.uploadReleaseAsset({ ...repo, release_id, name,
+                data: fs.readFileSync(`packages/${name}`), headers: { 'content-type': 'application/octet-stream' } });
+            }
+            const assets = await github.paginate(github.rest.repos.listReleaseAssets, { ...repo, release_id });
+            const checksums = assets.filter(asset => asset.name !== 'SHA256SUMS.txt').sort((a, b) => a.name.localeCompare(b.name)).map(asset => {
+              if (!/^sha256:[a-f0-9]{64}$/.test(asset.digest ?? '')) throw new Error(`Missing SHA-256 digest: ${asset.name}`);
+              return `${asset.digest.slice(7)}  ${asset.name}`;
+            }).join('\n') + '\n';
+            for (const asset of assets.filter(asset => asset.name === 'SHA256SUMS.txt')) {
+              await github.rest.repos.deleteReleaseAsset({ ...repo, asset_id: asset.id });
+            }
+            await github.rest.repos.uploadReleaseAsset({ ...repo, release_id, name: 'SHA256SUMS.txt',
+              data: Buffer.from(checksums), headers: { 'content-type': 'text/plain' } });
+            await core.summary.addLink('Open unpublished release draft', release.html_url).addRaw('\n\nPackages attached; Mac acceptance is still required before publishing.').write();
