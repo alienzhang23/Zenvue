@@ -4,16 +4,19 @@ const path = require("node:path");
 const { test } = require("node:test");
 const vm = require("node:vm");
 
-function loadHook({ rejectArchitecture = false } = {}) {
+function loadHook({ rejectArchitecture = false, rejectChecksum = false } = {}) {
 	const calls = [];
 	const sandbox = {
 		module: { exports: {} }, process,
 		require(name) {
 			if (name === "node:path") return path;
+			if (name === "node:crypto") return { createHash: () => ({ update: () => ({ digest: () =>
+				rejectChecksum ? "invalid" : "bb2db6f5d8cef919da12fbf592119a987202a8c060a886f3cab091f9cab90b64" }) }) };
 			if (name === "builder-util") return { Arch: { 1: "x64", 3: "arm64", 4: "universal" } };
 			if (name.endsWith(path.join("ffmpeg-static", "package.json"))) return { version: "5.3.0" };
-			if (name === "node:fs") return Object.fromEntries(["chmodSync", "copyFileSync", "mkdirSync"].map(key =>
-				[key, (...args) => calls.push([key, ...args])]));
+			if (name === "node:fs") return { readFileSync: () => Buffer.from("fixture"),
+				...Object.fromEntries(["chmodSync", "copyFileSync", "mkdirSync"].map(key =>
+					[key, (...args) => calls.push([key, ...args])])) };
 			if (name === "node:child_process") return { execFileSync(...args) {
 				calls.push(["exec", ...args]);
 				if (rejectArchitecture && args[0] === "lipo") throw new Error("wrong architecture");
@@ -51,6 +54,8 @@ for (const [arch, target, macho] of [[1, "x64", "x86_64"], [3, "arm64", "arm64"]
 		assert.equal(checks.length, 2);
 		assert.ok(checks.every(call => call[2][1] === "-verify_arch" && call[2][2] === macho));
 		assert.ok(checks[1][2][0].includes(path.join("darwin", target, "ffprobe")));
+		const probeCopy = calls.find(call => call[0] === "copyFileSync" && call[2].endsWith("ffprobe"));
+		assert.equal(Boolean(probeCopy), target === "arm64");
 	});
 }
 test("fails packaging when a binary has the wrong architecture", async () => {
@@ -60,4 +65,8 @@ test("fails packaging when a binary has the wrong architecture", async () => {
 test("rejects unsupported universal packaging", async () => {
 	const { hook } = loadHook();
 	await assert.rejects(hook(context("darwin", 4)), /Unsupported/);
+});
+test("rejects a corrupted ARM FFprobe download", async () => {
+	const { hook } = loadHook({ rejectChecksum: true });
+	await assert.rejects(hook(context("darwin", 3)), /SHA-256 integrity/);
 });
