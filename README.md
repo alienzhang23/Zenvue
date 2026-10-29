@@ -36,12 +36,14 @@ Zenvue 是一款本地桌面录屏与视频编辑软件，适合制作软件教�
 
 ### macOS 本地构建
 
-在 macOS 上安装 Node.js 22+、npm 和 Xcode Command Line Tools 后运行：
+在 macOS 上安装 Node.js 22+、npm、CMake 和 Xcode Command Line Tools 后运行：
 
 ```sh
 npm ci
 npm run build:mac
 ```
+
+如缺少 CMake 且明确接受不含自动字幕运行时的构建，可使用 `WHISPER_RUNTIME_ALLOW_MISSING=1 npm run build:mac`。要为两种架构都准备字幕运行时，使用 `WHISPER_RUNTIME_ARCHS=all npm ci`，再运行 `WHISPER_RUNTIME_ARCHS=all npm run build:mac`。
 
 构建产物位于 `release/`，包括 `Zenvue-arm64.dmg` / `Zenvue-arm64.zip`（Apple Silicon）和 `Zenvue-x64.dmg` / `Zenvue-x64.zip`（Intel）。本地构建默认未签名、未公证；首次打开时可能需要在 Finder 中右键选择“打开”。完整依赖、许可证和验证边界见 [RELEASING.md](RELEASING.md)。
 

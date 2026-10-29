@@ -6,7 +6,7 @@ This repository has its own identity and does not publish to Recordly's releases
 
 - Node.js 22 or later and npm.
 - Windows: Visual Studio C++ Build Tools, Windows SDK and CMake.
-- macOS: Xcode Command Line Tools; platform-specific code still needs validation on a Mac.
+- macOS: Xcode Command Line Tools and CMake; platform-specific code still needs validation on a Mac.
 - Optional NVIDIA export compositor: CUDA Toolkit and NVIDIA Video Codec SDK. Supply the latter via RECORDLY_NVIDIA_VIDEO_CODEC_SDK_ROOT according to its license; it is not included in Git.
 - Internet access for npm dependencies, Whisper runtime/model downloads when requested, Electron and packaging tools.
 
@@ -20,7 +20,7 @@ Generated native helpers, build caches and packaged executables are excluded fro
 
 ## macOS source build
 
-On an Apple Silicon or Intel Mac, install Node.js 22 or later, npm and Xcode Command Line Tools. From the repository root:
+On an Apple Silicon or Intel Mac, install Node.js 22 or later, npm, CMake and Xcode Command Line Tools. From the repository root:
 
 ```sh
 npm ci
@@ -29,7 +29,9 @@ npm run build:mac
 
 The builder writes both architectures to `release/`: `Zenvue-arm64.dmg`, `Zenvue-arm64.zip`, `Zenvue-x64.dmg` and `Zenvue-x64.zip`. Run `npm run checksums:release` after a successful build to create `release/SHA256SUMS.txt`. The macOS build is unsigned and unnotarized unless the maintainer supplies signing credentials; do not describe a local artifact as an official release.
 
-The Whisper runtime is optional. If CMake or the model runtime is unavailable, the application can still be packaged but local automatic captions are not included. Record that limitation with the build artifact and keep the source and license notices for the exact version.
+Local builds require CMake to build the Whisper runtime. If CMake is unavailable and you explicitly accept a package without local automatic captions, run `WHISPER_RUNTIME_ALLOW_MISSING=1 npm run build:mac`. Models are downloaded separately; a missing model does not prevent packaging. Record any runtime limitation with the artifact and keep the source and license notices for the exact version.
+
+For both caption-runtime architectures, set `WHISPER_RUNTIME_ARCHS=all` for both `npm ci` and `npm run build:mac`. The workflow sets this automatically and checks the packaged runtime files, FFmpeg/FFprobe target architectures, and DMG/ZIP integrity before uploading artifacts. These checks do not replace recording and export acceptance on physical Macs.
 
 The `macos-build.yml` workflow runs the same source build on GitHub-hosted macOS and uploads DMG, ZIP and checksum artifacts for review. It does not publish a release automatically.
 

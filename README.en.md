@@ -8,12 +8,14 @@ Maintained by [alienzhang23](https://github.com/alienzhang23). [Download release
 
 ## macOS packaging
 
-On macOS, install Node.js 22 or later, npm and Xcode Command Line Tools, then run:
+On macOS, install Node.js 22 or later, npm, CMake and Xcode Command Line Tools, then run:
 
 ```sh
 npm ci
 npm run build:mac
 ```
+
+If CMake is unavailable and you explicitly accept a build without the caption runtime, use `WHISPER_RUNTIME_ALLOW_MISSING=1 npm run build:mac`. To include the caption runtime for both architectures, use `WHISPER_RUNTIME_ARCHS=all npm ci`, followed by `WHISPER_RUNTIME_ARCHS=all npm run build:mac`.
 
 The `release/` directory contains `Zenvue-arm64.dmg` / `.zip` for Apple Silicon and `Zenvue-x64.dmg` / `.zip` for Intel Macs. Local packages are unsigned and notarization is not performed; Gatekeeper may require you to right-click and choose **Open**. See [release instructions](RELEASING.md) for dependencies, licenses and validation boundaries.
 
