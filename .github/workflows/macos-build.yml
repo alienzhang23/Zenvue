@@ -1,0 +1,58 @@
+name: Build macOS packages
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/macos-build.yml"
+      - "electron/**"
+      - "src/**"
+      - "scripts/**"
+      - "build/**"
+      - "package.json"
+      - "package-lock.json"
+      - "electron-builder.json5"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: Build macOS DMG and ZIP
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build macOS packages
+        run: npm run build:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Write checksums
+        run: npm run checksums:release
+
+      - name: Upload macOS packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenvue-macos-packages
+          if-no-files-found: error
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/SHA256SUMS.txt

@@ -4,7 +4,18 @@
 
 Zenvue is a local desktop screen recorder and editor derived from [Recordly](https://github.com/webadderallorg/Recordly). It includes region capture, typing-triggered automatic zoom, cursor presentation, explicit export resolutions, and Esc to stop and save.
 
-Maintained by [alienzhang23](https://github.com/alienzhang23). [Download Windows releases](https://github.com/alienzhang23/Zenvue/releases). [中文说明（默认）](README.md) · [Changes](CHANGELOG.md) · [Origin and license notices](NOTICE.md).
+Maintained by [alienzhang23](https://github.com/alienzhang23). [Download releases](https://github.com/alienzhang23/Zenvue/releases). [中文说明（默认）](README.md) · [Changes](CHANGELOG.md) · [Origin and license notices](NOTICE.md).
+
+## macOS packaging
+
+On macOS, install Node.js 22 or later, npm and Xcode Command Line Tools, then run:
+
+```sh
+npm ci
+npm run build:mac
+```
+
+The `release/` directory contains `Zenvue-arm64.dmg` / `.zip` for Apple Silicon and `Zenvue-x64.dmg` / `.zip` for Intel Macs. Local packages are unsigned and notarization is not performed; Gatekeeper may require you to right-click and choose **Open**. See [release instructions](RELEASING.md) for dependencies, licenses and validation boundaries.
 
 ## Development
 

@@ -27,12 +27,23 @@ Zenvue 是一款本地桌面录屏与视频编辑软件，适合制作软件教�
 
 ## 下载与使用
 
-当前 Release 提供 **Windows x64 解压即用包**。
+当前 Release 提供 **Windows x64 解压即用包**。macOS 的 DMG / ZIP 可以从源码构建；仓库提供可重复的 GitHub Actions 构建入口。
 
 1. 到 [Releases](https://github.com/alienzhang23/Zenvue/releases) 下载 `Zenvue-版本号-windows-x64.zip`。
 2. 将整个压缩包解压到固定目录，运行其中的 `Zenvue.exe`。请保留旁边的 `resources`、DLL 等文件，不要只移动 EXE。
 3. 在浮窗中选择录制源，按需开启声音和摄像头，再点击录制按钮。
 4. 停止录制后进入编辑器，调整画面并导出。
+
+### macOS 本地构建
+
+在 macOS 上安装 Node.js 22+、npm 和 Xcode Command Line Tools 后运行：
+
+```sh
+npm ci
+npm run build:mac
+```
+
+构建产物位于 `release/`，包括 `Zenvue-arm64.dmg` / `Zenvue-arm64.zip`（Apple Silicon）和 `Zenvue-x64.dmg` / `Zenvue-x64.zip`（Intel）。本地构建默认未签名、未公证；首次打开时可能需要在 Finder 中右键选择“打开”。完整依赖、许可证和验证边界见 [RELEASING.md](RELEASING.md)。
 
 升级前先退出正在运行的旧版，再启动新版。同一时间已运行的旧进程可能让你再次打开旧界面。Windows 托盘图标如果未直接显示，可在任务栏的隐藏图标区域查看。
 

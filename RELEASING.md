@@ -1,6 +1,6 @@
 # Building and releasing Zenvue
 
-This repository has its own identity and does not publish to Recordly's releases, update servers or Homebrew tap. The upstream publishing guide and Homebrew cask are preserved under docs/upstream/ only as historical reference. No GitHub Actions release workflow is enabled in this source snapshot.
+This repository has its own identity and does not publish to Recordly's releases, update servers or Homebrew tap. The upstream publishing guide and Homebrew cask are preserved under docs/upstream/ only as historical reference. The macOS workflow builds unsigned artifacts for validation and download; publishing a GitHub Release remains a deliberate maintainer action.
 
 ## Build prerequisites
 
@@ -17,6 +17,21 @@ Run npm ci, npm run build:platform-native-helpers, npm run typecheck, npm test a
 The npm install hook prepares native modules and helpers. If diagnosing an installation failure, npm ci --ignore-scripts installs source dependencies without running those steps; explicitly run npm run rebuild:native and npm run build:platform-native-helpers afterward. Ignoring install scripts alone does not produce a runnable native recording build.
 
 Generated native helpers, build caches and packaged executables are excluded from Git. Follow errors from each helper build script to install missing toolchains. An optional component that cannot be built on a fresh machine must not be represented as validated.
+
+## macOS source build
+
+On an Apple Silicon or Intel Mac, install Node.js 22 or later, npm and Xcode Command Line Tools. From the repository root:
+
+```sh
+npm ci
+npm run build:mac
+```
+
+The builder writes both architectures to `release/`: `Zenvue-arm64.dmg`, `Zenvue-arm64.zip`, `Zenvue-x64.dmg` and `Zenvue-x64.zip`. Run `npm run checksums:release` after a successful build to create `release/SHA256SUMS.txt`. The macOS build is unsigned and unnotarized unless the maintainer supplies signing credentials; do not describe a local artifact as an official release.
+
+The Whisper runtime is optional. If CMake or the model runtime is unavailable, the application can still be packaged but local automatic captions are not included. Record that limitation with the build artifact and keep the source and license notices for the exact version.
+
+The `macos-build.yml` workflow runs the same source build on GitHub-hosted macOS and uploads DMG, ZIP and checksum artifacts for review. It does not publish a release automatically.
 
 ## Before distributing
 
