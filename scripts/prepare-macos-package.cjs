@@ -28,6 +28,6 @@ module.exports = async function prepareMacosPackage(context) {
 	const ffprobe = path.join(unpacked, "node_modules/ffprobe-static/bin/darwin", arch, "ffprobe");
 	chmodSync(ffprobe, 0o755);
 	for (const binary of [ffmpeg, ffprobe]) {
-		execFileSync("lipo", ["-verify_arch", arch === "x64" ? "x86_64" : "arm64", binary], { stdio: "inherit" });
+		execFileSync("lipo", [binary, "-verify_arch", arch === "x64" ? "x86_64" : "arm64"], { stdio: "inherit" });
 	}
 };

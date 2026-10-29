@@ -49,8 +49,8 @@ for (const [arch, target, macho] of [[1, "x64", "x86_64"], [3, "arm64", "arm64"]
 		assert.ok(copy[2].includes("app.asar.unpacked"));
 		const checks = calls.filter(call => call[1] === "lipo");
 		assert.equal(checks.length, 2);
-		assert.ok(checks.every(call => call[2][1] === macho));
-		assert.ok(checks[1][2][2].includes(path.join("darwin", target, "ffprobe")));
+		assert.ok(checks.every(call => call[2][1] === "-verify_arch" && call[2][2] === macho));
+		assert.ok(checks[1][2][0].includes(path.join("darwin", target, "ffprobe")));
 	});
 }
 test("fails packaging when a binary has the wrong architecture", async () => {
