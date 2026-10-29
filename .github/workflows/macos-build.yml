@@ -23,6 +23,8 @@ jobs:
     name: Build macOS DMG and ZIP
     runs-on: macos-14
     timeout-minutes: 45
+    env:
+      WHISPER_RUNTIME_ARCHS: all
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -39,6 +41,9 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
+      - name: Test macOS packaging hook
+        run: node --test scripts/prepare-macos-package.test.cjs
+
       - name: Build macOS packages
         run: npm run build:mac
         env:
@@ -46,6 +51,14 @@ jobs:
 
       - name: Write checksums
         run: npm run checksums:release
+
+      - name: Verify package contents and archives
+        run: |
+          PACKAGED_SMOKE_ARCH_TAGS=darwin-arm64,darwin-x64 npm run smoke:packaged-binaries
+          for arch in arm64 x64; do
+            hdiutil verify "release/Zenvue-${arch}.dmg"
+            unzip -t "release/Zenvue-${arch}.zip" > /dev/null
+          done
 
       - name: Upload macOS packages
         uses: actions/upload-artifact@v4

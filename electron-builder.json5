@@ -4,6 +4,7 @@
   "appId": "local.zenvue.desktop",
   "electronUpdaterCompatibility": ">=2.16",
   "asar": true,
+  "afterPack": "scripts/prepare-macos-package.cjs",
   "asarUnpack": [
     "node_modules/ffmpeg-static/**",
     "node_modules/ffprobe-static/**",
@@ -27,7 +28,6 @@
     "!electron/native/bin/**/whisper-quantize*",
     "!electron/native/bin/**/whisper-server*",
     "!electron/native/bin/**/whisper-vad-speech-segments*",
-    "!node_modules/ffprobe-static/bin/darwin/**",
     "!node_modules/ffprobe-static/bin/linux/**",
     "!node_modules/ffprobe-static/bin/win32/ia32/**",
     "!electron/native/**/build/**",
