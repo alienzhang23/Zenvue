@@ -1,0 +1,104 @@
+name: Add macOS packages to Zenvue 1.4.3
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Validate existing release and successful build
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const repo = context.repo;
+            const run = (await github.rest.actions.getWorkflowRun({ ...repo, run_id: 40808733354 })).data;
+            const release = (await github.rest.repos.getRelease({ ...repo, release_id: 426223881 })).data;
+            if (run.conclusion !== 'success' || run.event !== 'workflow_dispatch' || run.head_branch !== 'main' ||
+                run.head_sha !== '311cd2eab0eaf0e92edc240654755df207c0947a' ||
+                run.head_repository.full_name !== `${repo.owner}/${repo.repo}` || run.path !== '.github/workflows/macos-build.yml') {
+              throw new Error('Expected verified macOS build is unavailable');
+            }
+            if (release.tag_name !== 'v1.4.3' || release.draft) throw new Error('Expected published v1.4.3 release');
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: zenvue-macos-packages
+          path: packages
+          run-id: 40808733354
+          github-token: ${{ github.token }}
+
+      - name: Verify original files and package installation instructions
+        run: |
+          (cd packages && sha256sum --ignore-missing --check SHA256SUMS.txt)
+          mkdir -p output
+          for arch in arm64 x64; do
+            mkdir -p "staging/$arch"
+            cp "packages/Zenvue-$arch.dmg" "staging/$arch/"
+            cp docs/README-macOS-zh-CN.md LICENSE.md NOTICE.md THIRD_PARTY_NOTICES.md "staging/$arch/"
+            (cd "staging/$arch" && sha256sum *.dmg *.md > SHA256SUMS.txt)
+            (cd "staging/$arch" && zip -q -r "../../output/Zenvue-1.4.3-macos-$arch.zip" .)
+            unzip -t "output/Zenvue-1.4.3-macos-$arch.zip" > /dev/null
+            unzip -p "output/Zenvue-1.4.3-macos-$arch.zip" README-macOS-zh-CN.md | cmp - docs/README-macOS-zh-CN.md
+          done
+          git archive --format=zip --prefix=Zenvue-source/ --output=output/Zenvue-1.4.3-macos-source.zip 311cd2eab0eaf0e92edc240654755df207c0947a
+          cp docs/README-macOS-zh-CN.md output/
+
+      - name: Add Mac assets and update release instructions and checksums
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const repo = context.repo;
+            const release_id = 426223881;
+            const release = (await github.rest.repos.getRelease({ ...repo, release_id })).data;
+            if (release.tag_name !== 'v1.4.3' || release.draft) throw new Error('Unexpected release');
+            const before = await github.paginate(github.rest.repos.listReleaseAssets, { ...repo, release_id });
+            const names = ['Zenvue-1.4.3-macos-arm64.zip', 'Zenvue-1.4.3-macos-x64.zip', 'Zenvue-1.4.3-macos-source.zip', 'README-macOS-zh-CN.md'];
+            for (const name of names) {
+              if (before.some(asset => asset.name === name)) throw new Error(`Refusing to overwrite existing asset: ${name}`);
+            }
+            for (const name of names) {
+              await github.rest.repos.uploadReleaseAsset({ ...repo, release_id, name,
+                data: fs.readFileSync(`output/${name}`), headers: { 'content-type': 'application/octet-stream' } });
+            }
+            const assets = await github.paginate(github.rest.repos.listReleaseAssets, { ...repo, release_id });
+            for (const original of before.filter(asset => asset.name !== 'SHA256SUMS.txt')) {
+              if (!assets.some(asset => asset.id === original.id && asset.digest === original.digest)) {
+                throw new Error(`Original asset changed: ${original.name}`);
+              }
+            }
+            const checksums = assets.filter(asset => asset.name !== 'SHA256SUMS.txt').sort((a, b) => a.name.localeCompare(b.name)).map(asset => {
+              if (!/^sha256:[a-f0-9]{64}$/.test(asset.digest ?? '')) throw new Error(`Missing SHA-256: ${asset.name}`);
+              return `${asset.digest.slice(7)}  ${asset.name}`;
+            }).join('\n') + '\n';
+            for (const asset of assets.filter(asset => asset.name === 'SHA256SUMS.txt')) {
+              await github.rest.repos.deleteReleaseAsset({ ...repo, asset_id: asset.id });
+            }
+            await github.rest.repos.uploadReleaseAsset({ ...repo, release_id, name: 'SHA256SUMS.txt',
+              data: Buffer.from(checksums), headers: { 'content-type': 'text/plain' } });
+            const section = '\n\n## macOS 下载与安装\n\n' +
+              '- `Zenvue-1.4.3-macos-arm64.zip`：Apple Silicon（M 系列）Mac。\n' +
+              '- `Zenvue-1.4.3-macos-x64.zip`：Intel Mac。\n' +
+              '- 两个 ZIP 内均包含 DMG、中文安装说明 `README-macOS-zh-CN.md`、许可证和包内校验文件。解压后打开 DMG，将 Zenvue.app 拖到“应用程序”。要求 macOS 14 或更新版本。\n' +
+              '- 本次 Mac 包未使用 Apple Developer ID 签名、未公证。首次打开被阻止时，确认来自本 Release 后，先尝试启动一次，再进入“系统设置 → 隐私与安全性 → 仍要打开”，按提示确认。无需关闭整个系统安全保护。完整操作及权限设置见包内说明，也可单独下载本 Release 的 `README-macOS-zh-CN.md`。\n' +
+              '- 录屏、麦克风和摄像头等权限按系统提示授权；修改权限后如提示重启，请保存项目后退出并重新打开。\n' +
+              '- Mac 包已通过构建、类型检查、组件文件、FFmpeg/FFprobe 架构和 DMG/ZIP 完整性检查；尚未完成物理 Mac 上安装、录屏、声音及导出的全流程验收，请先做短录制与导出测试。\n' +
+              '- `Zenvue-1.4.3-macos-source.zip` 为 Mac 包对应源码，提交 `311cd2eab0eaf0e92edc240654755df207c0947a`；原 Windows 包和原源码附件保持原样。字幕模型另行下载。\n' +
+              '- [Apple 官方首次打开说明](https://support.apple.com/zh-cn/102445) · [Mac 构建与检查记录](https://github.com/alienzhang23/Zenvue/actions/runs/40808733354)\n';
+            let body = release.body.replace('两个 ZIP 文件的 SHA-256 校验值。', '本 Release 各下载附件的 SHA-256 校验值。')
+              .replace('本次仅发布 Windows x64 二进制包，字幕模型不随包分发。', '本 Release 提供 Windows x64 及 macOS 安装包，字幕模型不随包分发。');
+            if (body.includes('## macOS 下载与安装')) throw new Error('Mac release notes already exist');
+            await github.rest.repos.updateRelease({ ...repo, release_id, tag_name: 'v1.4.3', body: body + section, draft: false });
+            await core.summary.addLink('Zenvue 1.4.3 release', release.html_url).addRaw('\n\nMac ZIPs include Chinese installation instructions. Original Windows and source assets were preserved.').write();
